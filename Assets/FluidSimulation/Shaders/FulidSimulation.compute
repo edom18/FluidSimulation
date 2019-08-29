@@ -1,0 +1,11 @@
+﻿#pragma kernel CSMain
+
+Texture2D<float4> inTex;
+Texture2D<float4> inTex2;
+RWTexture2D<float4> outTex;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    outTex[id.xy] = (inTex[id.xy] + inTex2[id.xy]) * 0.5;
+}
