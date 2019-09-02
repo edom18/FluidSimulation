@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/FluidSimulation/Scenes/SampleScene.unity
+    guid: 3184d905712af4d5fba3d43d2a6924de
   m_configObjects: {}

@@ -42,6 +42,8 @@ public class CreatePerlinNoiseTexture
         noiseTex.SetPixels(pix);
         noiseTex.Apply();
 
+        pix = null;
+
         return noiseTex;
     }
 }

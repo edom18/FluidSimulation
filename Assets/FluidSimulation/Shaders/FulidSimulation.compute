@@ -1,15 +1,28 @@
-﻿#pragma kernel Init
+﻿#pragma kernel CopyTex
 #pragma kernel Update
+#pragma kernel UpdateVelocity
+#pragma kernel GetPixels
 
 Texture2D<float4> inTex;
-Texture2D<float4> noiseTex;
+Texture2D<float4> velocityTex;
+
+RWTexture2D<float4> noiseTex;
 RWTexture2D<float4> outTex;
+
+RWStructuredBuffer<float4> result;
 
 SamplerState _LinearClamp;
 
 [numthreads(8, 8, 1)]
-void Init(uint2 id : SV_DispatchThreadID)
+void CopyTex(uint2 id : SV_DispatchThreadID)
 {
+    // float w, h;
+    // inTex.GetDimensions(w, h);
+
+    // float2 uv = float2(id.x / w, id.y / h);
+    // float4 t = inTex.SampleLevel(_LinearClamp, uv, 0);
+
+    // outTex[id] = t;
     outTex[id] = inTex[id];
 }
 
@@ -19,11 +32,28 @@ void Update(uint3 id : SV_DispatchThreadID)
     float w, h;
     inTex.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
-
     float2 offs = saturate(noiseTex[id.xy].xy) * 0.01 * float2(w, h);
     int3 offsi = int3(offs.x, offs.y, 0);
     float4 ncol = inTex[id.xy + offsi.xy];
     float4 col = inTex[id.xy];
     outTex[id.xy] = (col + ncol) * 0.5;
+}
+
+[numthreads(8,8,1)]
+void UpdateVelocity(uint2 id : SV_DispatchThreadID)
+{
+    float4 ncol = noiseTex[id];
+    float4 vcol = velocityTex[id] * 0.1;
+    noiseTex[id] = ncol + vcol;
+}
+
+[numthreads(8, 8, 1)]
+void GetPixels(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    inTex.GetDimensions(w, h);
+
+    float4 col = inTex[id];
+    int index = id.y * w + id.x;
+    result[index] = col;
 }
