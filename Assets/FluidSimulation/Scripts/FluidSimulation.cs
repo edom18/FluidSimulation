@@ -105,15 +105,16 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateVelocity()
     {
-        _shader.SetTexture(_kernelVelocityId, "noiseTex", _noiseRenderTex);
-        _shader.SetTexture(_kernelVelocityId, "velocityTex", _velocityRenderTex);
+        _shader.SetTexture(_kernelVelocityId, "inNoiseTex", _noiseRenderTex);
+        _shader.SetTexture(_kernelVelocityId, "inVelocityTex", _velocityRenderTex);
+        _shader.SetTexture(_kernelVelocityId, "outNoiseTex", _noiseRenderTex);
 
         _shader.Dispatch(_kernelVelocityId, _texture.width / 8, _texture.height / 8, 1);
     }
 
     private void UpdateTexture()
     {
-        _shader.SetTexture(_kernelUpdateId, "noiseTex", _noiseRenderTex);
+        _shader.SetTexture(_kernelUpdateId, "inNoiseTex", _noiseRenderTex);
         _shader.SetTexture(_kernelUpdateId, "inTex", InTex);
         _shader.SetTexture(_kernelUpdateId, "outTex", OutTex);
 
