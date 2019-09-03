@@ -29,30 +29,16 @@ public class FluidSimulation : MonoBehaviour
 
     private RenderTexture _noiseRenderTex = null;
     private RenderTexture _velocityRenderTex = null;
-    private Texture2D _tex;
 
     private void Start()
     {
         Initialize();
     }
 
-    private void OnGUI()
-    {
-        if (_tex != null)
-        {
-            GUI.DrawTexture(new Rect(0, 0, _tex.width, _tex.height), _tex);
-        }
-    }
-
     private void Update()
     {
         UpdateTexture();
         UpdateVelocity();
-
-        if (Input.GetMouseButton(0))
-        {
-            CopyTex();
-        }
     }
 
     private void OnDestroy()
@@ -64,25 +50,6 @@ public class FluidSimulation : MonoBehaviour
         {
             buf.Release();
         }
-    }
-
-    private void CopyTex()
-    {
-        int kernel = _shader.FindKernel("GetPixels");
-
-        int num = _noiseRenderTex.width * _noiseRenderTex.height;
-        int str = Marshal.SizeOf(typeof(Color));
-        ComputeBuffer buf = new ComputeBuffer(num, str);
-        _shader.SetTexture(kernel, "inTex", InTex);
-        _shader.SetBuffer(kernel, "result", buf);
-        _shader.Dispatch(kernel, _noiseRenderTex.width / 8, _noiseRenderTex.height / 8, 1);
-
-        Color[] colors = new Color[num];
-        buf.GetData(colors);
-
-        _tex = new Texture2D(_noiseRenderTex.width, _noiseRenderTex.height);
-        _tex.SetPixels(colors);
-        _tex.Apply();
     }
 
     private void Initialize()
@@ -110,12 +77,15 @@ public class FluidSimulation : MonoBehaviour
         _shader.SetTexture(kernel, "outTex", OutTex);
         _shader.Dispatch(kernel, _texture.width / 8, _texture.height / 8, 1);
 
-        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _noiseScale);
+        float min = -0.01f;
+        float max =  0.01f;
+
+        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, min, max, _noiseScale);
         _shader.SetTexture(kernel, "inTex", noiseTex);
         _shader.SetTexture(kernel, "outTex", _noiseRenderTex);
         _shader.Dispatch(kernel, noiseTex.width / 8, noiseTex.height / 8, 1);
 
-        Texture2D velocityTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _noiseScale * 125f);
+        Texture2D velocityTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, min, max, _noiseScale * 125f);
         _shader.SetTexture(kernel, "inTex", velocityTex);
         _shader.SetTexture(kernel, "outTex", _velocityRenderTex);
         _shader.Dispatch(kernel, velocityTex.width / 8, velocityTex.height / 8, 1);

@@ -7,7 +7,7 @@ public class CreatePerlinNoiseTexture
     static private float xOrg = 0;
     static private float yOrg = 0;
 
-    static public Texture2D Create(int width, int height, float scale = 1.0f)
+    static public Texture2D Create(int width, int height, float min, float max, float scale = 1.0f)
     {
         Texture2D noiseTex = new Texture2D(width, height);
 
@@ -25,10 +25,10 @@ public class CreatePerlinNoiseTexture
 
                 for (int i = 0; i < 3; i++)
                 {
-                    float xCoord = xOrg + x / noiseTex.width * scale;
-                    float yCoord = yOrg + y / noiseTex.height * scale;
+                    float xCoord = xOrg + (x / noiseTex.width * scale) + (125f * i);
+                    float yCoord = yOrg + (y / noiseTex.height * scale) + (3021f * i);
                     float sample = Mathf.PerlinNoise(xCoord, yCoord);
-                    samples[i] = sample * 2.0f - 1.0f;
+                    samples[i] =  Mathf.Lerp(min, max, sample);
                 }
 
                 pix[(int)y * noiseTex.width + (int)x] = new Color(samples[0], samples[1], samples[2]);
