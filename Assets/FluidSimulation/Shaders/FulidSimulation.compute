@@ -1,5 +1,4 @@
-﻿#pragma kernel CopyTex
-#pragma kernel Update
+﻿#pragma kernel Update
 #pragma kernel UpdateVelocity
 #pragma kernel UpdatePressure
 
@@ -13,12 +12,6 @@ RWTexture2D<float4> outNoiseTex;
 RWTexture2D<float4> outPressureTex;
 
 SamplerState _LinearClamp;
-
-[numthreads(8, 8, 1)]
-void CopyTex(uint3 id : SV_DispatchThreadID)
-{
-    outTex[id.xy] = inTex[id.xy];
-}
 
 [numthreads(8,8,1)]
 void Update(uint2 id : SV_DispatchThreadID)
