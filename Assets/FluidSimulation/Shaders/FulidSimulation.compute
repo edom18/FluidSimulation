@@ -4,13 +4,13 @@
 #pragma kernel UpdateVelocity
 
 
-Texture2D<float4> sourceVelocity;
-Texture2D<float4> updateVelocity;
-Texture2D<float4> sourcePressure;
+Texture2D<float4> _SourceVelocity;
+Texture2D<float4> _UpdateVelocity;
+Texture2D<float4> _SourcePressure;
 
-RWTexture2D<float4> resultVelocity;
-RWTexture2D<float4> resultPressure;
-RWTexture2D<float4> resultDivergence;
+RWTexture2D<float4> _ResultVelocity;
+RWTexture2D<float4> _ResultPressure;
+RWTexture2D<float4> _ResultDivergence;
 
 SamplerState _LinearClamp;
 
@@ -57,72 +57,72 @@ float _Scale;
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
-    sourceVelocity.GetDimensions(w, h);
+    _SourceVelocity.GetDimensions(w, h);
 
     float2 uv = float2(id.x / w, id.y / h);
 
-    float2 velocity = updateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float2 result = sourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
+    float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
+    float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
 
-    resultVelocity[id] = float4(result, 0.0, 0.0);
+    _ResultVelocity[id] = float4(result, 0.0, 0.0);
 }
 
 [numthreads(8,8,1)]
 void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
-    sourceVelocity.GetDimensions(w, h);
+    _SourceVelocity.GetDimensions(w, h);
 
     float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
 
-    float x0 = sourceVelocity.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
-    float x1 = sourceVelocity.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
-    float y0 = sourceVelocity.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
-    float y1 = sourceVelocity.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
+    float x0 = _SourceVelocity.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
+    float x1 = _SourceVelocity.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
+    float y0 = _SourceVelocity.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
+    float y1 = _SourceVelocity.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
     float divergence = (x1 - x0 + y1 - y0) * 0.5;
 
-    resultDivergence[id] = divergence.xxxx;
+    _ResultDivergence[id] = divergence.xxxx;
 }
 
 [numthreads(8,8,1)]
 void UpdatePressure(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
-    sourcePressure.GetDimensions(w, h);
+    _SourcePressure.GetDimensions(w, h);
 
     float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
 
-    float x0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
-    float x1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
-    float y0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
-    float y1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
+    float x0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
+    float x1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
+    float y0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
+    float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
-    float d = resultDivergence[id].r;
+    float d = _ResultDivergence[id].r;
     float relaxed = (x0 + x1 + y0 + y1 + _Alpha * d) * _Beta;
 
-    resultPressure[id] = relaxed.xxxx;
+    _ResultPressure[id] = relaxed.xxxx;
 }
 
 [numthreads(8,8,1)]
 void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
-    sourcePressure.GetDimensions(w, h);
+    _SourcePressure.GetDimensions(w, h);
 
     float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
 
-    float x0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
-    float x1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
-    float y0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
-    float y1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
+    float x0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
+    float x1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
+    float y0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
+    float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
-    float2 v = sourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
+    float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 1.0, 1.0);
     v2 *= 0.99;
 
-    resultVelocity[id] = v2;
+    _ResultVelocity[id] = v2;
 }
