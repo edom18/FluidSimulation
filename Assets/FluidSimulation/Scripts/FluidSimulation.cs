@@ -9,9 +9,19 @@ public class SwapBuffer
     private RenderTexture[] _buffers = new RenderTexture[2];
 
     public RenderTexture Current => _buffers[0];
+    public RenderTexture Other => _buffers[1];
+
+    private int _width = 0;
+    private int _height = 0;
+
+    public int Width => _width;
+    public int Height => _height;
 
     public SwapBuffer(int width, int height)
     {
+        _width = width;
+        _height = height;
+
         for (int i = 0; i < _buffers.Length; i++)
         {
             _buffers[i] = new RenderTexture(width, height, 0);
@@ -38,6 +48,13 @@ public class SwapBuffer
 
 public class FluidSimulation : MonoBehaviour
 {
+    private struct KernelDef
+    {
+        public int UpdateAdvectionID;
+        public int UpdateDivergenceID;
+        public int UpdatePressureID;
+        public int UpdateVelocityID;
+    }
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
@@ -45,9 +62,7 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private float _noiseScale = 100f;
     [SerializeField] private float _numCalcPressure = 5;
 
-    private int _kernelUpdateId = 0;
-    private int _kernelVelocityId = 0;
-    private int _kernelPressureId = 0;
+    private KernelDef _kernelDef;
 
     private RenderTexture _previewTexture = null;
     private RenderTexture _divergenceTexture = null;
@@ -62,9 +77,11 @@ public class FluidSimulation : MonoBehaviour
 
     private void Update()
     {
-        UpdatePressure();
-        UpdateVelocity();
-        UpdateTexture();
+        // if (Input.GetKeyDown(KeyCode.Space))
+        // {
+        // }
+
+        UpdateAdvection();
     }
 
     private void OnDestroy()
@@ -108,9 +125,25 @@ public class FluidSimulation : MonoBehaviour
 
     private void InitializeKernel()
     {
-        _kernelUpdateId = _shader.FindKernel("Update");
-        _kernelVelocityId = _shader.FindKernel("UpdateVelocity");
-        _kernelPressureId = _shader.FindKernel("UpdatePressure");
+        _kernelDef.UpdateAdvectionID = _shader.FindKernel("UpdateAdvection");
+        _kernelDef.UpdateDivergenceID = _shader.FindKernel("UpdateDivergence");
+        _kernelDef.UpdatePressureID = _shader.FindKernel("UpdatePressure");
+        _kernelDef.UpdateVelocityID = _shader.FindKernel("UpdateVelocity");
+    }
+
+    private void UpdateAdvection()
+    {
+        _shader.SetFloat("_DeltaTime", Time.deltaTime);
+
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_UpdateVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_ResultVelocity", _velocityBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+
+        _velocityBuffer.Swap();
+
+        _velocityPreview.texture = _velocityBuffer.Current;
     }
 
     private void UpdatePressure()
