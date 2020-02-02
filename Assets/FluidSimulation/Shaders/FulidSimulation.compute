@@ -1,92 +1,24 @@
-﻿#pragma kernel Update
-#pragma kernel UpdateVelocity
+﻿#pragma kernel UpdateAdvection
+#pragma kernel UpdateDivergence
 #pragma kernel UpdatePressure
 
-Texture2D<float4> inTex;
-Texture2D<float4> inNoiseTex;
-Texture2D<float4> inVelocityTex;
-Texture2D<float4> inPressureTex;
 
-RWTexture2D<float4> outTex;
-RWTexture2D<float4> outNoiseTex;
-RWTexture2D<float4> outPressureTex;
+Texture2D<float4> sourceVelocity;
+Texture2D<float4> updateVelocity;
+Texture2D<float4> sourcePressure;
+
+RWTexture2D<float4> resultVelocity;
+RWTexture2D<float4> resultPressure;
+RWTexture2D<float4> resultDivergence;
 
 SamplerState _LinearClamp;
 
-[numthreads(8,8,1)]
-void Update(uint2 id : SV_DispatchThreadID)
-{
-    float w, h;
-    inTex.GetDimensions(w, h);
+float _DeltaTime;
+float _Alpha;
+float _Beta;
 
-    float2 offs = inNoiseTex[id].xy;
-
-    float2 uv = float2(id.x / w, id.y / h);
-
-    float4 ncol = inTex.SampleLevel(_LinearClamp, uv + offs, 0);
-    float4 col = inTex.SampleLevel(_LinearClamp, uv, 0);
-
-    outTex[id] = (col + ncol) * 0.5;
-}
-
-// [numthreads(8,8,1)]
-// void UpdateVelocity(uint2 id : SV_DispatchThreadID)
-// {
-//     float4 ncol, vcol;
-
-//     {
-//         float w, h;
-//         inNoiseTex.GetDimensions(w, h);
-
-//         float2 uv = float2(id.x / w, id.y / h);
-//         ncol = inNoiseTex.SampleLevel(_LinearClamp, uv, 0);
-//     }
-
-//     {
-//         float w, h;
-//         inVelocityTex.GetDimensions(w, h);
-
-//         float2 uv = float2(id.x / w, id.y / h);
-//         vcol = inVelocityTex.SampleLevel(_LinearClamp, uv, 0);
-//     }
-
-//     outNoiseTex[id] = ncol + vcol;
-// }
-
-[numthreads(8,8,1)]
-void UpdateVelocity(uint2 id : SV_DispatchThreadID)
-{
-    float4 ncol, vcol;
-
-    {
-        float w, h;
-        inNoiseTex.GetDimensions(w, h);
-
-        float2 uv = float2(id.x / w, id.y / h);
-        ncol = inNoiseTex.SampleLevel(_LinearClamp, uv, 0);
-    }
-
-    {
-        float w, h;
-        inPressureTex.GetDimensions(w, h);
-
-        float iw = 1.0 / w;
-        float ih = 1.0 / h;
-
-        float2 uv = float2(id.x / w, id.y / h);
-
-        float up = inPressureTex.SampleLevel(_LinearClamp, uv + float2(0, -ih), 0).x;
-        float down = inPressureTex.SampleLevel(_LinearClamp, uv + float2(0, ih), 0).x;
-        float left = inPressureTex.SampleLevel(_LinearClamp, uv + float2(-iw, 0), 0).x;
-        float right = inPressureTex.SampleLevel(_LinearClamp, uv + float2(iw, 0), 0).x;
-
-        ncol.x += (left - right) * 0.5;
-        ncol.y += (down - up) * 0.5;
-    }
-
-    outNoiseTex[id] = ncol;
-}
-
+//
+// NOTE:-------------------------------------------------------
 //
 // 【圧力・発散の更新】
 //
@@ -118,48 +50,56 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 //
 // という風に、圧力を繰り返し計算しつつ徐々に精度を上げていく方法です。
 // この方法は非常に強力で、Box2DやBulletなど各種物理エンジンでも使われています。
-//
+
+[numthreads(8,8,1)]
+void UpdateAdvection(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    sourceVelocity.GetDimensions(w, h);
+
+    float2 uv = float2(id.x / w, id.y / h);
+
+    float2 velocity = updateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
+    float2 result = sourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
+
+    resultVelocity[id] = float4(result, 0.0, 0.0);
+}
+
+[numthreads(8,8,1)]
+void UpdateDivergence(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    sourceVelocity.GetDimensions(w, h);
+
+    float2 uv = float2(id.x / w, id.y / h);
+    float3 px = float3(1.0 / w, 1.0 / h, 0);
+
+    float x0 = sourceVelocity.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
+    float x1 = sourceVelocity.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
+    float y0 = sourceVelocity.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
+    float y1 = sourceVelocity.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
+
+    float divergence = (x1 - x0 + y1 - y0) * 0.5;
+
+    resultDivergence[id] = divergence.xxxx;
+}
+
 [numthreads(8,8,1)]
 void UpdatePressure(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
-    inNoiseTex.GetDimensions(w, h);
-
-    float iw = 1.0 / w;
-    float ih = 1.0 / h;
+    sourcePressure.GetDimensions(w, h);
 
     float2 uv = float2(id.x / w, id.y / h);
+    float3 px = float3(1.0 / w, 1.0 / h, 0);
 
-    uint3 io = uint3(1, 0, -1);
+    float x0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
+    float x1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
+    float y0 = sourcePressure.SampleLevel(_LinearClamp, uv - px.zy, 0).r;
+    float y1 = sourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
-    float d, p;
+    float d = resultDivergence[id].r;
+    float relaxed = (x0 + x1 + y0 + y1 + _Alpha * d) * _Beta;
 
-    // Calucurate divergence.
-    {
-        // float2 up = inNoiseTex[id + io.yx].xy;
-        // float2 down = inNoiseTex[id + io.yz].xy;
-        // float2 left = inNoiseTex[id + io.zy].xy;
-        // float2 right = inNoiseTex[id + io.xy].xy;
-        float2 up = inNoiseTex.SampleLevel(_LinearClamp, uv + float2(0, ih), 0).xy;
-        float2 down = inNoiseTex.SampleLevel(_LinearClamp, uv + float2(0, -ih), 0).xy;
-        float2 left = inNoiseTex.SampleLevel(_LinearClamp, uv + float2(-iw, 0), 0).xy;
-        float2 right = inNoiseTex.SampleLevel(_LinearClamp, uv + float2(iw, 0), 0).xy;
-
-        d = (right.x - left.x) + (up.y - down.y);
-    }
-
-    {
-        // float up = inPressureTex[id + io.yx].x;
-        // float down = inPressureTex[id + io.yz].x;
-        // float left = inPressureTex[id + io.zy].x;
-        // float right = inPressureTex[id + io.xy].x;
-        float up =  inPressureTex.SampleLevel(_LinearClamp, uv + float2(0, ih), 0).x;
-        float down = inPressureTex.SampleLevel(_LinearClamp, uv + float2(0, -ih), 0).x;
-        float left = inPressureTex.SampleLevel(_LinearClamp, uv + float2(-iw, 0), 0).x;
-        float right = inPressureTex.SampleLevel(_LinearClamp, uv + float2(iw, 0), 0).x;
-
-        p = (left + right + up + down - d) * 0.25;
-    }
-
-    outPressureTex[id] = p.xxxx;
+    resultPressure[id] = relaxed.xxxx;
 }

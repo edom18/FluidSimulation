@@ -50,6 +50,7 @@ public class FluidSimulation : MonoBehaviour
     private int _kernelPressureId = 0;
 
     private RenderTexture _previewTexture = null;
+    private RenderTexture _divergenceTexture = null;
 
     private SwapBuffer _velocityBuffer = null;
     private SwapBuffer _pressureBuffer = null;
@@ -68,6 +69,9 @@ public class FluidSimulation : MonoBehaviour
 
     private void OnDestroy()
     {
+        _previewTexture.Release();
+        _divergenceTexture.Release();
+
         _velocityBuffer.Release();
         _pressureBuffer.Release();
     }
@@ -90,12 +94,14 @@ public class FluidSimulation : MonoBehaviour
         _previewTexture = new RenderTexture(_texture.width, _texture.height, 0);
         _previewTexture.enableRandomWrite = true;
         _previewTexture.Create();
-
         Graphics.CopyTexture(_texture, 0, 0, _previewTexture, 0, 0);
+
+        _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0);
+        _divergenceTexture.enableRandomWrite = true;
+        _divergenceTexture.Create();
 
         float min = -0.1f;
         float max = 0.1f;
-
         Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, min, max, _noiseScale);
         Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
     }
