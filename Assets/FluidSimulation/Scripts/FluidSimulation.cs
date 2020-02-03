@@ -60,7 +60,7 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private RawImage _preview = null;
     [SerializeField] private RawImage _velocityPreview = null;
     [SerializeField] private float _noiseScale = 100f;
-    [SerializeField] private float _numCalcPressure = 5;
+    [SerializeField] private float _numCalcPressure = 20;
 
     private KernelDef _kernelDef;
 
@@ -77,12 +77,10 @@ public class FluidSimulation : MonoBehaviour
 
     private void Update()
     {
-        // if (Input.GetKeyDown(KeyCode.Space))
-        // {
-        // }
-
         UpdateAdvection();
         UpdateDivergence();
+        UpdatePressure();
+        UpdateVelocity();
     }
 
     private void OnDestroy()
@@ -135,6 +133,7 @@ public class FluidSimulation : MonoBehaviour
     private void UpdateAdvection()
     {
         _shader.SetFloat("_DeltaTime", Time.deltaTime);
+        _shader.SetFloat("_Scale", 1.0f);
 
         _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_UpdateVelocity", _velocityBuffer.Current);
@@ -152,39 +151,34 @@ public class FluidSimulation : MonoBehaviour
         _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_ResultDivergence", _divergenceTexture);
 
-        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _divergenceTexture.width / 8, _divergenceTexture.height / 8, 1);
     }
 
     private void UpdatePressure()
     {
-        // for (int i = 0; i < _numCalcPressure; i++)
-        // {
-        //     _shader.SetTexture(_kernelPressureId, "inNoiseTex", _noiseRenderTex);
-        //     _shader.SetTexture(_kernelPressureId, "inPressureTex", _pressureyRenderTex);
-        //     _shader.SetTexture(_kernelPressureId, "outPressureTex", _pressureyRenderTex);
-        //     _shader.Dispatch(_kernelPressureId, _pressureyRenderTex.width / 8, _pressureyRenderTex.height / 8, 1);
-        // }
+        _shader.SetFloat("_Alpha", 0.25f);
+        _shader.SetFloat("_Beta", 0.25f);
+
+        for (int i = 0; i < _numCalcPressure; i++)
+        {
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_SourcePressure", _pressureBuffer.Current);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultPressure", _pressureBuffer.Other);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultDivergence", _divergenceTexture);
+
+            _shader.Dispatch(_kernelDef.UpdatePressureID, _pressureBuffer.Width / 8, _pressureBuffer.Height / 8, 1);
+
+            _pressureBuffer.Swap();
+        }
     }
 
     private void UpdateVelocity()
     {
-        // _shader.SetTexture(_kernelVelocityId, "inNoiseTex", _noiseRenderTex);
-        // _shader.SetTexture(_kernelVelocityId, "inPressureTex", _pressureyRenderTex);
-        // _shader.SetTexture(_kernelVelocityId, "outNoiseTex", _noiseRenderTex);
+        _shader.SetFloat("_Scale", 1.0f);
 
-        // _shader.Dispatch(_kernelVelocityId, _noiseRenderTex.width / 8, _noiseRenderTex.height / 8, 1);
-    }
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourcePressure", _pressureBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_ResultVelocity", _velocityBuffer.Other);
 
-    private void UpdateTexture()
-    {
-        // _shader.SetTexture(_kernelUpdateId, "inNoiseTex", _noiseRenderTex);
-        // _shader.SetTexture(_kernelUpdateId, "inTex", InTex);
-        // _shader.SetTexture(_kernelUpdateId, "outTex", OutTex);
-
-        // _shader.Dispatch(_kernelUpdateId, _texture.width / 8, _texture.height / 8, 1);
-
-        // SwapBuffer();
-
-        // _rawImage.texture = OutTex;
+        _shader.Dispatch(_kernelDef.UpdateVelocityID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
     }
 }
