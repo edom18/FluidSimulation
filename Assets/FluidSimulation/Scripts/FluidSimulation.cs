@@ -60,6 +60,8 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
     [SerializeField] private RawImage _velocityPreview = null;
+    [SerializeField] private float _alpha = 1.0f;
+    [SerializeField] private float _beta = 0.25f;
     [SerializeField] private float _noiseScale = 100f;
     [SerializeField] private float _numCalcPressure = 20;
 
@@ -157,8 +159,8 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdatePressure()
     {
-        _shader.SetFloat("_Alpha", 0.25f);
-        _shader.SetFloat("_Beta", 0.25f);
+        _shader.SetFloat("_Alpha", _alpha);
+        _shader.SetFloat("_Beta", _beta);
 
         for (int i = 0; i < _numCalcPressure; i++)
         {
