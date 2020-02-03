@@ -82,6 +82,7 @@ public class FluidSimulation : MonoBehaviour
         // }
 
         UpdateAdvection();
+        UpdateDivergence();
     }
 
     private void OnDestroy()
@@ -144,6 +145,14 @@ public class FluidSimulation : MonoBehaviour
         _velocityBuffer.Swap();
 
         _velocityPreview.texture = _velocityBuffer.Current;
+    }
+
+    private void UpdateDivergence()
+    {
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_ResultDivergence", _divergenceTexture);
+
+        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
     }
 
     private void UpdatePressure()
