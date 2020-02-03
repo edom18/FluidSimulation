@@ -64,7 +64,7 @@ void UpdateAdvection(uint2 id : SV_DispatchThreadID)
     float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
 
-    _ResultVelocity[id] = float4(result, 0.0, 0.0);
+    _ResultVelocity[id] = float4(result, 0.0, 1.0) * _Scale;
 }
 
 [numthreads(8,8,1)]
