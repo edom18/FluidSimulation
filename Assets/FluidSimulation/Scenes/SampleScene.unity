@@ -124,7 +124,7 @@ GameObject:
   - component: {fileID: 49889069}
   - component: {fileID: 49889068}
   m_Layer: 5
-  m_Name: NoisePreview
+  m_Name: ParamPreview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -146,8 +146,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 93, y: 0}
-  m_SizeDelta: {x: 256, y: 256}
+  m_AnchoredPosition: {x: 170, y: 0}
+  m_SizeDelta: {x: 512, y: 512}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &49889068
 MonoBehaviour:
@@ -366,9 +366,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _shader: {fileID: 7200000, guid: a87db28fab3e74c48a65bd8eff32c99d, type: 3}
   _texture: {fileID: 2800000, guid: f524bdf1363264e38bd17dcd96fcd09b, type: 3}
-  _rawImage: {fileID: 1728754690}
-  _noisePreview: {fileID: 49889068}
+  _preview: {fileID: 1728754690}
+  _velocityPreview: {fileID: 49889068}
+  _alpha: 1
+  _beta: 0.25
   _noiseScale: 10
+  _numCalcPressure: 20
 --- !u!4 &651846158
 Transform:
   m_ObjectHideFlags: 0
@@ -666,7 +669,7 @@ GameObject:
   - component: {fileID: 1728754691}
   - component: {fileID: 1728754690}
   m_Layer: 5
-  m_Name: RawImage
+  m_Name: Preview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -688,8 +691,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -226, y: 0}
-  m_SizeDelta: {x: 256, y: 256}
+  m_AnchoredPosition: {x: -427, y: 0}
+  m_SizeDelta: {x: 512, y: 512}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1728754690
 MonoBehaviour:
