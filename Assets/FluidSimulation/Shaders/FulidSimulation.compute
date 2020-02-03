@@ -2,15 +2,18 @@
 #pragma kernel UpdateDivergence
 #pragma kernel UpdatePressure
 #pragma kernel UpdateVelocity
+#pragma kernel UpdateTexture
 
 
 Texture2D<float4> _SourceVelocity;
 Texture2D<float4> _UpdateVelocity;
 Texture2D<float4> _SourcePressure;
+Texture2D<float4> _SourceTexture;
 
 RWTexture2D<float4> _ResultVelocity;
 RWTexture2D<float4> _ResultPressure;
 RWTexture2D<float4> _ResultDivergence;
+RWTexture2D<float4> _ResultTexture;
 
 SamplerState _LinearClamp;
 
@@ -125,4 +128,19 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     v2 *= 0.99;
 
     _ResultVelocity[id] = v2;
+}
+
+[numthreads(8,8,1)]
+void UpdateTexture(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _SourceTexture.GetDimensions(w, h);
+
+    float2 uv = float2(id.x / w, id.y / h);
+    float3 px = float3(1.0 / w, 1.0 / h, 0);
+
+    float2 vel = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
+    float4 col = _SourceTexture.SampleLevel(_LinearClamp, uv + vel, 0);
+
+    _ResultTexture[id] = col;
 }

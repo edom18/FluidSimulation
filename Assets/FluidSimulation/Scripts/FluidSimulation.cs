@@ -54,6 +54,7 @@ public class FluidSimulation : MonoBehaviour
         public int UpdateDivergenceID;
         public int UpdatePressureID;
         public int UpdateVelocityID;
+        public int UpdateTextureID;
     }
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
@@ -64,11 +65,11 @@ public class FluidSimulation : MonoBehaviour
 
     private KernelDef _kernelDef;
 
-    private RenderTexture _previewTexture = null;
     private RenderTexture _divergenceTexture = null;
 
     private SwapBuffer _velocityBuffer = null;
     private SwapBuffer _pressureBuffer = null;
+    private SwapBuffer _previewBuffer = null;
 
     private void Start()
     {
@@ -81,15 +82,16 @@ public class FluidSimulation : MonoBehaviour
         UpdateDivergence();
         UpdatePressure();
         UpdateVelocity();
+        UpdateTexture();
     }
 
     private void OnDestroy()
     {
-        _previewTexture.Release();
         _divergenceTexture.Release();
 
         _velocityBuffer.Release();
         _pressureBuffer.Release();
+        _previewBuffer.Release();
     }
 
     private void Initialize()
@@ -99,18 +101,16 @@ public class FluidSimulation : MonoBehaviour
         InitializeKernel();
 
         _velocityPreview.texture = _velocityBuffer.Current;
-        _preview.texture = _previewTexture;
+        _preview.texture = _previewBuffer.Current;
     }
 
     private void CreateBuffers()
     {
         _velocityBuffer = new SwapBuffer(_texture.width, _texture.height);
         _pressureBuffer = new SwapBuffer(_texture.width, _texture.height);
+        _previewBuffer = new SwapBuffer(_texture.width, _texture.height);
 
-        _previewTexture = new RenderTexture(_texture.width, _texture.height, 0);
-        _previewTexture.enableRandomWrite = true;
-        _previewTexture.Create();
-        Graphics.CopyTexture(_texture, 0, 0, _previewTexture, 0, 0);
+        Graphics.CopyTexture(_texture, 0, 0, _previewBuffer.Current, 0, 0);
 
         _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0);
         _divergenceTexture.enableRandomWrite = true;
@@ -128,6 +128,7 @@ public class FluidSimulation : MonoBehaviour
         _kernelDef.UpdateDivergenceID = _shader.FindKernel("UpdateDivergence");
         _kernelDef.UpdatePressureID = _shader.FindKernel("UpdatePressure");
         _kernelDef.UpdateVelocityID = _shader.FindKernel("UpdateVelocity");
+        _kernelDef.UpdateTextureID = _shader.FindKernel("UpdateTexture");
     }
 
     private void UpdateAdvection()
@@ -180,5 +181,18 @@ public class FluidSimulation : MonoBehaviour
         _shader.SetTexture(_kernelDef.UpdateVelocityID, "_ResultVelocity", _velocityBuffer.Other);
 
         _shader.Dispatch(_kernelDef.UpdateVelocityID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+    }
+
+    private void UpdateTexture()
+    {
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceTexture", _previewBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_ResultTexture", _previewBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.UpdateTextureID, _previewBuffer.Width / 8, _previewBuffer.Height / 8, 1);
+
+        _previewBuffer.Swap();
+
+        _preview.texture = _previewBuffer.Current;
     }
 }
