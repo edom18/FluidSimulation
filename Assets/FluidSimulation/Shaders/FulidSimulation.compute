@@ -4,6 +4,7 @@
 #pragma kernel UpdateVelocity
 #pragma kernel UpdateTexture
 
+#pragma kernel Test
 
 Texture2D<float4> _SourceVelocity;
 Texture2D<float4> _UpdateVelocity;
@@ -16,6 +17,7 @@ RWTexture2D<float4> _ResultDivergence;
 RWTexture2D<float4> _ResultTexture;
 
 SamplerState _LinearClamp;
+SamplerState _LinearRepeat;
 
 float _DeltaTime;
 float _Alpha;
@@ -57,12 +59,26 @@ float _Scale;
 // この方法は非常に強力で、Box2DやBulletなど各種物理エンジンでも使われています。
 
 [numthreads(8,8,1)]
+void Test(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _SourceTexture.GetDimensions(w, h);
+
+    float3 px = float3(1.0/w, 1.0/h, 0.0);
+    float2 uv = float2(id.x/w, id.y/h) + px.xy * 0.5;
+
+    float4 t = _SourceTexture.SampleLevel(_LinearClamp, uv, 0);
+    _ResultTexture[id] = t;
+}
+
+[numthreads(8,8,1)]
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
 {
     float w, h;
     _SourceVelocity.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
+    float3 px = float3(1.0/w, 1.0/h, 0.0);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
@@ -76,8 +92,8 @@ void UpdateDivergence(uint2 id : SV_DispatchThreadID)
     float w, h;
     _SourceVelocity.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float x0 = _SourceVelocity.SampleLevel(_LinearClamp, uv - px.xz, 0).x;
     float x1 = _SourceVelocity.SampleLevel(_LinearClamp, uv + px.xz, 0).x;
@@ -86,7 +102,7 @@ void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 
     float divergence = (x1 - x0 + y1 - y0) * 0.5;
 
-    _ResultDivergence[id] = divergence.xxxx;
+    _ResultDivergence[id] = float4(divergence.xxx, 1.0);
 }
 
 [numthreads(8,8,1)]
@@ -95,8 +111,8 @@ void UpdatePressure(uint2 id : SV_DispatchThreadID)
     float w, h;
     _SourcePressure.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float x0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
     float x1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
@@ -115,8 +131,8 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     float w, h;
     _SourcePressure.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float x0 = _SourcePressure.SampleLevel(_LinearClamp, uv - px.xz, 0).r;
     float x1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.xz, 0).r;
@@ -136,8 +152,8 @@ void UpdateTexture(uint2 id : SV_DispatchThreadID)
     float w, h;
     _SourceTexture.GetDimensions(w, h);
 
-    float2 uv = float2(id.x / w, id.y / h);
     float3 px = float3(1.0 / w, 1.0 / h, 0);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float2 vel = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float4 col = _SourceTexture.SampleLevel(_LinearClamp, uv + vel, 0);
