@@ -4,8 +4,6 @@
 #pragma kernel UpdateVelocity
 #pragma kernel UpdateTexture
 
-#pragma kernel Test
-
 Texture2D<float4> _SourceVelocity;
 Texture2D<float4> _UpdateVelocity;
 Texture2D<float4> _SourcePressure;
@@ -57,19 +55,6 @@ float _Scale;
 //
 // という風に、圧力を繰り返し計算しつつ徐々に精度を上げていく方法です。
 // この方法は非常に強力で、Box2DやBulletなど各種物理エンジンでも使われています。
-
-[numthreads(8,8,1)]
-void Test(uint2 id : SV_DispatchThreadID)
-{
-    float w, h;
-    _SourceTexture.GetDimensions(w, h);
-
-    float3 px = float3(1.0/w, 1.0/h, 0.0);
-    float2 uv = float2(id.x/w, id.y/h) + px.xy * 0.5;
-
-    float4 t = _SourceTexture.SampleLevel(_LinearClamp, uv, 0);
-    _ResultTexture[id] = t;
-}
 
 [numthreads(8,8,1)]
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
