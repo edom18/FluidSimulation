@@ -142,7 +142,7 @@ void UpdateTexture(uint2 id : SV_DispatchThreadID)
 
     float2 vel = _SourceVelocity.SampleLevel(_LinearRepeat, uv, 0).xy;
 
-    float4 col = _SourceTexture.SampleLevel(_LinearRepeat, uv - vel, 0);
+    float4 col = _SourceTexture.SampleLevel(_LinearRepeat, uv - vel * px.xy, 0);
 
     _ResultTexture[id] = col;
 }
