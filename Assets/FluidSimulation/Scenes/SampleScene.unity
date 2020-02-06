@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 170076734}
-  m_IndirectSpecularColor: {r: 0.44657838, g: 0.49641234, b: 0.57481676, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -124,7 +124,7 @@ GameObject:
   - component: {fileID: 49889069}
   - component: {fileID: 49889068}
   m_Layer: 5
-  m_Name: ParamPreview
+  m_Name: MetaPreview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -367,11 +367,14 @@ MonoBehaviour:
   _shader: {fileID: 7200000, guid: a87db28fab3e74c48a65bd8eff32c99d, type: 3}
   _texture: {fileID: 2800000, guid: f524bdf1363264e38bd17dcd96fcd09b, type: 3}
   _preview: {fileID: 1728754690}
-  _velocityPreview: {fileID: 49889068}
+  _metaPreview: {fileID: 49889068}
+  _minNoise: -0.1
+  _maxNoise: 0.1
   _alpha: 1
   _beta: 0.25
   _noiseScale: 10
   _numCalcPressure: 20
+  _previewType: 1
 --- !u!4 &651846158
 Transform:
   m_ObjectHideFlags: 0

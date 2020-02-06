@@ -48,6 +48,14 @@ public class SwapBuffer
 
 public class FluidSimulation : MonoBehaviour
 {
+    public enum PreviewType
+    {
+        Texture,
+        Velocity,
+        Divergence,
+        Pressure,
+    }
+
     private struct KernelDef
     {
         public int UpdateAdvectionID;
@@ -57,16 +65,19 @@ public class FluidSimulation : MonoBehaviour
         public int UpdateVelocityID;
         public int UpdateTextureID;
     }
+
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
-    [SerializeField] private RawImage _velocityPreview = null;
+    [SerializeField] private RawImage _metaPreview = null;
     [SerializeField] private float _minNoise = -0.1f;
     [SerializeField] private float _maxNoise = 0.1f;
     [SerializeField] private float _alpha = 1.0f;
     [SerializeField] private float _beta = 0.25f;
     [SerializeField] private float _noiseScale = 100f;
     [SerializeField] private float _numCalcPressure = 20;
+
+    [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
 
     private KernelDef _kernelDef;
 
@@ -129,9 +140,21 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdatePreview()
     {
-        _velocityPreview.texture = _velocityBuffer.Current;
-        // _velocityPreview.texture = _pressureBuffer.Current;
-        // _velocityPreview.texture = _divergenceTexture;
+        switch (_previewType)
+        {
+            case PreviewType.Velocity:
+                _metaPreview.texture = _velocityBuffer.Current;
+                break;
+
+            case PreviewType.Divergence:
+                _metaPreview.texture = _divergenceTexture;
+                break;
+
+            case PreviewType.Pressure:
+                _metaPreview.texture = _pressureBuffer.Current;
+                break;
+        }
+
         _preview.texture = _previewBuffer.Current;
     }
 
