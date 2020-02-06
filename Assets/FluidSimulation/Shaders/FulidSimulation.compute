@@ -84,7 +84,7 @@ void UpdateAdvection(uint2 id : SV_DispatchThreadID)
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
+    float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime * px.xy, 0).xy;
 
     _ResultVelocity[id] = float4(result, 0.0, 1.0) * _Scale;
 }
@@ -102,8 +102,8 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
 
     float dist = distance(_Cursor * px, uv);
 
-    float marginX = 1.0 - 2.0 * px.x;
-    float marginY = 1.0 - 2.0 * px.y;
+    //float marginX = 1.0 - 2.0 * px.x;
+    //float marginY = 1.0 - 2.0 * px.y;
 
     if (
     // dist < 50.0 && length(dist) > 0.0 &&
@@ -112,7 +112,7 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
     length(dist) < 0.01
     )
     {
-        vec.xy += _Velocity.xy;
+        vec.xy += _Velocity.xy * px;
         // vec = blendAdd(vec, float3(_Velocity.xy * px, 0.0), clamp(1.0 - dist, 0.0, 1.0));
     }
 
@@ -194,3 +194,4 @@ void UpdateTexture(uint2 id : SV_DispatchThreadID)
 
     _ResultTexture[id] = col;
 }
+

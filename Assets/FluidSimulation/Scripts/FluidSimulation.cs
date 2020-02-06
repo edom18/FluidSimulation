@@ -24,7 +24,7 @@ public class SwapBuffer
 
         for (int i = 0; i < _buffers.Length; i++)
         {
-            _buffers[i] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            _buffers[i] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             _buffers[i].enableRandomWrite = true;
             _buffers[i].Create();
         }
@@ -70,11 +70,9 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
     [SerializeField] private RawImage _metaPreview = null;
-    [SerializeField] private float _minNoise = -0.1f;
-    [SerializeField] private float _maxNoise = 0.1f;
-    [SerializeField] private float _alpha = 1.0f;
-    [SerializeField] private float _beta = 0.25f;
-    [SerializeField] private float _noiseScale = 100f;
+    [SerializeField] private float _scale = 0.1f;
+    //[SerializeField] private float _alpha = 1.0f;
+    //[SerializeField] private float _beta = 0.25f;
     [SerializeField] private float _numCalcPressure = 20;
 
     [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
@@ -164,9 +162,9 @@ public class FluidSimulation : MonoBehaviour
         _pressureBuffer = new SwapBuffer(_texture.width, _texture.height);
         _previewBuffer = new SwapBuffer(_texture.width, _texture.height);
 
-        Graphics.CopyTexture(_texture, 0, 0, _previewBuffer.Current, 0, 0);
+        Graphics.Blit(_texture, _previewBuffer.Current);
 
-        _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+        _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
         _divergenceTexture.enableRandomWrite = true;
         _divergenceTexture.Create();
 
@@ -187,7 +185,7 @@ public class FluidSimulation : MonoBehaviour
     private void UpdateAdvection()
     {
         _shader.SetFloat("_DeltaTime", Time.deltaTime);
-        _shader.SetFloat("_Scale", 1.0f);
+        _shader.SetFloat("_Scale", _scale);
 
         _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_UpdateVelocity", _velocityBuffer.Current);
@@ -223,8 +221,8 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdatePressure()
     {
-        _shader.SetFloat("_Alpha", _alpha);
-        _shader.SetFloat("_Beta", _beta);
+        //_shader.SetFloat("_Alpha", _alpha);
+        //_shader.SetFloat("_Beta", _beta);
 
         for (int i = 0; i < _numCalcPressure; i++)
         {
@@ -240,7 +238,7 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateVelocity()
     {
-        _shader.SetFloat("_Scale", 1.0f);
+        _shader.SetFloat("_Scale", _scale);
 
         _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourcePressure", _pressureBuffer.Current);
