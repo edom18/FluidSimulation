@@ -1,4 +1,5 @@
 ﻿#pragma kernel UpdateAdvection
+#pragma kernel InteractionForce
 #pragma kernel UpdateDivergence
 #pragma kernel UpdatePressure
 #pragma kernel UpdateVelocity
@@ -21,6 +22,25 @@ float _DeltaTime;
 float _Alpha;
 float _Beta;
 float _Scale;
+
+float2 _Cursor;
+float2 _PrevPos;
+float2 _Velocity;
+
+float blendAdd(float base, float blend)
+{
+    return min(base + blend, 1.0);
+}
+
+float3 blendAdd(float3 base, float3 blend)
+{
+    return min(base + blend, 1.0);
+}
+
+float3 blendAdd(float3 base, float3 blend, float3 opacity)
+{
+    return (blendAdd(base, blend) * opacity + base * (1.0 - opacity));
+}
 
 //
 // NOTE:-------------------------------------------------------
@@ -69,6 +89,36 @@ void UpdateAdvection(uint2 id : SV_DispatchThreadID)
     float2 result = _SourceVelocity.SampleLevel(_LinearRepeat, uv - velocity * _DeltaTime * px.xy, 0).xy;
 
     _ResultVelocity[id] = float4(result, 0.0, 1.0) * _Scale;
+}
+
+[numthreads(8,8,1)]
+void InteractionForce(uint2 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _SourceVelocity.GetDimensions(w, h);
+
+    float2 px = float2(1.0 / w, 1.0 / h);
+    float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
+
+    float3 vec = _SourceVelocity.SampleLevel(_LinearRepeat, uv, 0).xyz;
+
+    float dist = distance(_Cursor * px, uv);
+
+    float marginX = 1.0 - 2.0 * px.x;
+    float marginY = 1.0 - 2.0 * px.y;
+
+    if (
+    // dist < 50.0 && length(dist) > 0.0 &&
+    // uv.x < marginX && uv.x > -marginX &&
+    // uv.y < marginY && uv.y > -marginY
+    length(dist) < 0.001
+    )
+    {
+        vec.xy += _Velocity.xy * px.xy;
+        // vec = blendAdd(vec, float3(_Velocity.xy * px, 0.0), clamp(1.0 - dist, 0.0, 1.0));
+    }
+
+    _ResultVelocity[id] = float4(vec, 1.0);
 }
 
 [numthreads(8,8,1)]

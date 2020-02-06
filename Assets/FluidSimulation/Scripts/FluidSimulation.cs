@@ -51,6 +51,7 @@ public class FluidSimulation : MonoBehaviour
     private struct KernelDef
     {
         public int UpdateAdvectionID;
+        public int InteractionForceID;
         public int UpdateDivergenceID;
         public int UpdatePressureID;
         public int UpdateVelocityID;
@@ -75,6 +76,9 @@ public class FluidSimulation : MonoBehaviour
     private SwapBuffer _pressureBuffer = null;
     private SwapBuffer _previewBuffer = null;
 
+    private Vector3 _mouseVelocity = Vector3.zero;
+    private Vector3 _prevMouse = Vector3.zero;
+
     private void Start()
     {
         Initialize();
@@ -82,7 +86,10 @@ public class FluidSimulation : MonoBehaviour
 
     private void Update()
     {
+        CalculateVelocity();
+
         UpdateAdvection();
+        InteractionForce();
         UpdateDivergence();
         UpdatePressure();
         UpdateVelocity();
@@ -107,9 +114,24 @@ public class FluidSimulation : MonoBehaviour
         UpdatePreview();
     }
 
+    private void CalculateVelocity()
+    {
+        if (_prevMouse == Vector3.zero)
+        {
+            _prevMouse = Input.mousePosition;
+            return;
+        }
+
+        Vector4 delta = Input.mousePosition - _prevMouse;
+        _mouseVelocity = delta / Time.deltaTime;
+        _prevMouse = Input.mousePosition;
+    }
+
     private void UpdatePreview()
     {
         _velocityPreview.texture = _velocityBuffer.Current;
+        // _velocityPreview.texture = _pressureBuffer.Current;
+        // _velocityPreview.texture = _divergenceTexture;
         _preview.texture = _previewBuffer.Current;
     }
 
@@ -132,6 +154,7 @@ public class FluidSimulation : MonoBehaviour
     private void InitializeKernel()
     {
         _kernelDef.UpdateAdvectionID = _shader.FindKernel("UpdateAdvection");
+        _kernelDef.InteractionForceID = _shader.FindKernel("InteractionForce");
         _kernelDef.UpdateDivergenceID = _shader.FindKernel("UpdateDivergence");
         _kernelDef.UpdatePressureID = _shader.FindKernel("UpdatePressure");
         _kernelDef.UpdateVelocityID = _shader.FindKernel("UpdateVelocity");
@@ -152,6 +175,20 @@ public class FluidSimulation : MonoBehaviour
         _velocityBuffer.Swap();
 
         UpdatePreview();
+    }
+
+    private void InteractionForce()
+    {
+        _shader.SetVector("_Cursor", Input.mousePosition);
+        _shader.SetVector("_PrevPos", _prevMouse);
+        _shader.SetVector("_Velocity", _mouseVelocity);
+
+        _shader.SetTexture(_kernelDef.InteractionForceID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.InteractionForceID, "_ResultVelocity", _velocityBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.InteractionForceID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+
+        _velocityBuffer.Swap();
     }
 
     private void UpdateDivergence()
