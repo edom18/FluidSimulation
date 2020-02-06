@@ -159,7 +159,7 @@ public class FluidSimulation : MonoBehaviour
         _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_ResultDivergence", _divergenceTexture);
 
-        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _divergenceTexture.width / 8, _divergenceTexture.height / 8, 1);
+        _shader.Dispatch(_kernelDef.UpdateDivergenceID, _divergenceTexture.width / 8, _divergenceTexture.height / 8, 1);
     }
 
     private void UpdatePressure()
@@ -194,6 +194,8 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateTexture()
     {
+        _shader.SetFloat("_DeltaTime", Time.deltaTime);
+
         _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceTexture", _previewBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceVelocity", _velocityBuffer.Current);
         _shader.SetTexture(_kernelDef.UpdateTextureID, "_ResultTexture", _previewBuffer.Other);
