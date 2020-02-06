@@ -60,6 +60,8 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
     [SerializeField] private RawImage _velocityPreview = null;
+    [SerializeField] private float _minNoise = -0.1f;
+    [SerializeField] private float _maxNoise = 0.1f;
     [SerializeField] private float _alpha = 1.0f;
     [SerializeField] private float _beta = 0.25f;
     [SerializeField] private float _noiseScale = 100f;
@@ -123,9 +125,7 @@ public class FluidSimulation : MonoBehaviour
         _divergenceTexture.enableRandomWrite = true;
         _divergenceTexture.Create();
 
-        float min = -0.1f;
-        float max = 0.1f;
-        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, min, max, _noiseScale);
+        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _minNoise, _maxNoise, _noiseScale);
         Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
     }
 
