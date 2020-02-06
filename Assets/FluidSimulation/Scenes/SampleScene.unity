@@ -374,7 +374,7 @@ MonoBehaviour:
   _beta: 0.25
   _noiseScale: 10
   _numCalcPressure: 20
-  _previewType: 1
+  _previewType: 3
 --- !u!4 &651846158
 Transform:
   m_ObjectHideFlags: 0
