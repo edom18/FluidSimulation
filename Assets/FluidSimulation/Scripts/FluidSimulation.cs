@@ -203,7 +203,6 @@ public class FluidSimulation : MonoBehaviour
     private void InteractionForce()
     {
         _shader.SetVector("_Cursor", Input.mousePosition);
-        _shader.SetVector("_PrevPos", _prevMouse);
         _shader.SetVector("_Velocity", _mouseVelocity);
 
         _shader.SetTexture(_kernelDef.InteractionForceID, "_SourceVelocity", _velocityBuffer.Current);
