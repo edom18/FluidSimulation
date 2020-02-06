@@ -24,7 +24,7 @@ public class SwapBuffer
 
         for (int i = 0; i < _buffers.Length; i++)
         {
-            _buffers[i] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            _buffers[i] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             _buffers[i].enableRandomWrite = true;
             _buffers[i].Create();
         }
@@ -147,8 +147,8 @@ public class FluidSimulation : MonoBehaviour
         _divergenceTexture.enableRandomWrite = true;
         _divergenceTexture.Create();
 
-        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _minNoise, _maxNoise, _noiseScale);
-        Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
+        //Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _minNoise, _maxNoise, _noiseScale);
+        //Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
     }
 
     private void InitializeKernel()
