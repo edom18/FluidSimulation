@@ -4,36 +4,89 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
 
+public class SwapBuffer
+{
+    private RenderTexture[] _buffers = new RenderTexture[2];
+
+    public RenderTexture Current => _buffers[0];
+    public RenderTexture Other => _buffers[1];
+
+    private int _width = 0;
+    private int _height = 0;
+
+    public int Width => _width;
+    public int Height => _height;
+
+    public SwapBuffer(int width, int height)
+    {
+        _width = width;
+        _height = height;
+
+        for (int i = 0; i < _buffers.Length; i++)
+        {
+            _buffers[i] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            _buffers[i].enableRandomWrite = true;
+            _buffers[i].Create();
+        }
+    }
+
+    public void Swap()
+    {
+        RenderTexture temp = _buffers[0];
+        _buffers[0] = _buffers[1];
+        _buffers[1] = temp;
+    }
+
+    public void Release()
+    {
+        foreach (var buf in _buffers)
+        {
+            buf.Release();
+        }
+    }
+}
+
 public class FluidSimulation : MonoBehaviour
 {
-    [SerializeField]
-    private ComputeShader _shader = null;
+    public enum PreviewType
+    {
+        Texture,
+        Velocity,
+        Divergence,
+        Pressure,
+    }
 
-    [SerializeField]
-    private Texture2D _texture = null;
+    private struct KernelDef
+    {
+        public int UpdateAdvectionID;
+        public int InteractionForceID;
+        public int UpdateDivergenceID;
+        public int UpdatePressureID;
+        public int UpdateVelocityID;
+        public int UpdateTextureID;
+    }
 
-    [SerializeField]
-    private RawImage _rawImage = null;
+    [SerializeField] private ComputeShader _shader = null;
+    [SerializeField] private Texture2D _texture = null;
+    [SerializeField] private RawImage _preview = null;
+    [SerializeField] private RawImage _metaPreview = null;
+    [SerializeField] private float _scale = 0.1f;
+    //[SerializeField] private float _alpha = 1.0f;
+    //[SerializeField] private float _beta = 0.25f;
+    [SerializeField] private float _numCalcPressure = 20;
 
-    [SerializeField]
-    private RawImage _noisePreview = null;
+    [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
 
-    [SerializeField]
-    private float _noiseScale = 100f;
+    private KernelDef _kernelDef;
 
-    [SerializeField]
-    private float _numCalcPressure = 5;
+    private RenderTexture _divergenceTexture = null;
 
-    private int _kernelUpdateId = 0;
-    private int _kernelVelocityId = 0;
-    private int _kernelPressureId = 0;
-    private RenderTexture[] _buffers = new RenderTexture[2];
-    private RenderTexture InTex { get { return _buffers[0]; } }
-    private RenderTexture OutTex { get { return _buffers[1]; } }
+    private SwapBuffer _velocityBuffer = null;
+    private SwapBuffer _pressureBuffer = null;
+    private SwapBuffer _previewBuffer = null;
 
-    private RenderTexture _noiseRenderTex = null;
-    private RenderTexture _velocityRenderTex = null;
-    private RenderTexture _pressureyRenderTex = null;
+    private Vector3 _mouseVelocity = Vector3.zero;
+    private Vector3 _prevMouse = Vector3.zero;
 
     private void Start()
     {
@@ -42,6 +95,11 @@ public class FluidSimulation : MonoBehaviour
 
     private void Update()
     {
+        CalculateVelocity();
+
+        UpdateAdvection();
+        InteractionForce();
+        UpdateDivergence();
         UpdatePressure();
         UpdateVelocity();
         UpdateTexture();
@@ -49,102 +107,160 @@ public class FluidSimulation : MonoBehaviour
 
     private void OnDestroy()
     {
-        _noiseRenderTex.Release();
-        _velocityRenderTex.Release();
-        _pressureyRenderTex.Release();
+        _divergenceTexture.Release();
+
+        _velocityBuffer.Release();
+        _pressureBuffer.Release();
+        _previewBuffer.Release();
     }
 
     private void Initialize()
     {
-        for (int i = 0; i < _buffers.Length; i++)
-        {
-            _buffers[i] = new RenderTexture(_texture.width, _texture.height, 0);
-            _buffers[i].enableRandomWrite = true;
-            _buffers[i].Create();
-        }
+        CreateBuffers();
 
-        _noiseRenderTex = new RenderTexture(_texture.width, _texture.height, 0);
-        _noiseRenderTex.enableRandomWrite = true;
-        _noiseRenderTex.Create();
+        InitializeKernel();
 
-        _velocityRenderTex = new RenderTexture(_texture.width, _texture.height, 0);
-        _velocityRenderTex.enableRandomWrite = true;
-        _velocityRenderTex.Create();
-
-        _pressureyRenderTex = new RenderTexture(_texture.width, _texture.height, 0);
-        _pressureyRenderTex.enableRandomWrite = true;
-        _pressureyRenderTex.Create();
-
-        _kernelUpdateId = _shader.FindKernel("Update");
-        _kernelVelocityId = _shader.FindKernel("UpdateVelocity");
-        _kernelPressureId = _shader.FindKernel("UpdatePressure");
-
-        int kernel = _shader.FindKernel("CopyTex");
-        _shader.SetTexture(kernel, "inTex", _texture);
-        _shader.SetTexture(kernel, "outTex", OutTex);
-        _shader.Dispatch(kernel, _texture.width / 8, _texture.height / 8, 1);
-
-        float min = -0.1f;
-        float max =  0.1f;
-
-        Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, min, max, _noiseScale);
-        _shader.SetTexture(kernel, "inTex", noiseTex);
-        _shader.SetTexture(kernel, "outTex", _noiseRenderTex);
-        _shader.Dispatch(kernel, noiseTex.width / 8, noiseTex.height / 8, 1);
-
-        Texture2D velocityTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, -1f, 1f, _noiseScale * 125f);
-        _shader.SetTexture(kernel, "inTex", velocityTex);
-        _shader.SetTexture(kernel, "outTex", _velocityRenderTex);
-        _shader.Dispatch(kernel, velocityTex.width / 8, velocityTex.height / 8, 1);
-
-        Texture2D pressureTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, 0, 0);
-        _shader.SetTexture(kernel, "inTex", pressureTex);
-        _shader.SetTexture(kernel, "outTex", _pressureyRenderTex);
-        _shader.Dispatch(kernel, pressureTex.width / 8, pressureTex.height / 8, 1);
-
-        _noisePreview.texture = _pressureyRenderTex;
-        _rawImage.texture = OutTex;
-
-        SwapBuffer();
+        UpdatePreview();
     }
 
-    private void SwapBuffer()
+    private void CalculateVelocity()
     {
-        RenderTexture tmp = _buffers[1];
-        _buffers[1] = _buffers[0];
-        _buffers[0] = tmp;
+        if (_prevMouse == Vector3.zero)
+        {
+            _prevMouse = Input.mousePosition;
+            return;
+        }
+
+        Vector4 delta = Input.mousePosition - _prevMouse;
+        _mouseVelocity = delta / Time.deltaTime;
+        _prevMouse = Input.mousePosition;
+    }
+
+    private void UpdatePreview()
+    {
+        switch (_previewType)
+        {
+            case PreviewType.Velocity:
+                _metaPreview.texture = _velocityBuffer.Current;
+                break;
+
+            case PreviewType.Divergence:
+                _metaPreview.texture = _divergenceTexture;
+                break;
+
+            case PreviewType.Pressure:
+                _metaPreview.texture = _pressureBuffer.Current;
+                break;
+        }
+
+        _preview.texture = _previewBuffer.Current;
+    }
+
+    private void CreateBuffers()
+    {
+        _velocityBuffer = new SwapBuffer(_texture.width, _texture.height);
+        _pressureBuffer = new SwapBuffer(_texture.width, _texture.height);
+        _previewBuffer = new SwapBuffer(_texture.width, _texture.height);
+
+        Graphics.Blit(_texture, _previewBuffer.Current);
+
+        _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+        _divergenceTexture.enableRandomWrite = true;
+        _divergenceTexture.Create();
+
+        //Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _minNoise, _maxNoise, _noiseScale);
+        //Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
+    }
+
+    private void InitializeKernel()
+    {
+        _kernelDef.UpdateAdvectionID = _shader.FindKernel("UpdateAdvection");
+        _kernelDef.InteractionForceID = _shader.FindKernel("InteractionForce");
+        _kernelDef.UpdateDivergenceID = _shader.FindKernel("UpdateDivergence");
+        _kernelDef.UpdatePressureID = _shader.FindKernel("UpdatePressure");
+        _kernelDef.UpdateVelocityID = _shader.FindKernel("UpdateVelocity");
+        _kernelDef.UpdateTextureID = _shader.FindKernel("UpdateTexture");
+    }
+
+    private void UpdateAdvection()
+    {
+        _shader.SetFloat("_DeltaTime", Time.deltaTime);
+        _shader.SetFloat("_Scale", _scale);
+
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_UpdateVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_ResultVelocity", _velocityBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+
+        _velocityBuffer.Swap();
+
+        UpdatePreview();
+    }
+
+    private void InteractionForce()
+    {
+        _shader.SetVector("_Cursor", Input.mousePosition);
+        _shader.SetVector("_Velocity", _mouseVelocity);
+
+        _shader.SetTexture(_kernelDef.InteractionForceID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.InteractionForceID, "_ResultVelocity", _velocityBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.InteractionForceID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+
+        _velocityBuffer.Swap();
+    }
+
+    private void UpdateDivergence()
+    {
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_ResultDivergence", _divergenceTexture);
+
+        _shader.Dispatch(_kernelDef.UpdateDivergenceID, _divergenceTexture.width / 8, _divergenceTexture.height / 8, 1);
     }
 
     private void UpdatePressure()
     {
+        //_shader.SetFloat("_Alpha", _alpha);
+        //_shader.SetFloat("_Beta", _beta);
+
         for (int i = 0; i < _numCalcPressure; i++)
         {
-            _shader.SetTexture(_kernelPressureId, "inNoiseTex", _noiseRenderTex);
-            _shader.SetTexture(_kernelPressureId, "inPressureTex", _pressureyRenderTex);
-            _shader.SetTexture(_kernelPressureId, "outPressureTex", _pressureyRenderTex);
-            _shader.Dispatch(_kernelPressureId, _pressureyRenderTex.width / 8, _pressureyRenderTex.height / 8, 1);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_SourcePressure", _pressureBuffer.Current);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultPressure", _pressureBuffer.Other);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultDivergence", _divergenceTexture);
+
+            _shader.Dispatch(_kernelDef.UpdatePressureID, _pressureBuffer.Width / 8, _pressureBuffer.Height / 8, 1);
+
+            _pressureBuffer.Swap();
         }
     }
 
     private void UpdateVelocity()
     {
-        _shader.SetTexture(_kernelVelocityId, "inNoiseTex", _noiseRenderTex);
-        _shader.SetTexture(_kernelVelocityId, "inPressureTex", _pressureyRenderTex);
-        _shader.SetTexture(_kernelVelocityId, "outNoiseTex", _noiseRenderTex);
+        _shader.SetFloat("_Scale", _scale);
 
-        _shader.Dispatch(_kernelVelocityId, _noiseRenderTex.width / 8, _noiseRenderTex.height / 8, 1);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourcePressure", _pressureBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_ResultVelocity", _velocityBuffer.Other);
+
+        _shader.Dispatch(_kernelDef.UpdateVelocityID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
+
+        _velocityBuffer.Swap();
     }
 
     private void UpdateTexture()
     {
-        _shader.SetTexture(_kernelUpdateId, "inNoiseTex", _noiseRenderTex);
-        _shader.SetTexture(_kernelUpdateId, "inTex", InTex);
-        _shader.SetTexture(_kernelUpdateId, "outTex", OutTex);
+        _shader.SetFloat("_DeltaTime", Time.deltaTime);
 
-        _shader.Dispatch(_kernelUpdateId, _texture.width / 8, _texture.height / 8, 1);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceTexture", _previewBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceVelocity", _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, "_ResultTexture", _previewBuffer.Other);
 
-        SwapBuffer();
+        _shader.Dispatch(_kernelDef.UpdateTextureID, _previewBuffer.Width / 8, _previewBuffer.Height / 8, 1);
 
-        _rawImage.texture = OutTex;
+        _previewBuffer.Swap();
+
+        UpdatePreview();
     }
 }
