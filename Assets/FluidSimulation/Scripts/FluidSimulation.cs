@@ -121,6 +121,11 @@ public class FluidSimulation : MonoBehaviour
             CalculateVelocity();
         }
 
+        if (Input.GetMouseButtonUp(0))
+        {
+            _mouseVelocity = Vector3.zero;
+        }
+
         UpdateAdvection();
         InteractionForce();
         UpdateDivergence();
@@ -149,12 +154,6 @@ public class FluidSimulation : MonoBehaviour
 
     private void CalculateVelocity()
     {
-        if (_prevMouse == Vector3.zero)
-        {
-            _prevMouse = Input.mousePosition;
-            return;
-        }
-
         Vector4 delta = Input.mousePosition - _prevMouse;
         _mouseVelocity = delta / Time.deltaTime;
         _prevMouse = Input.mousePosition;
