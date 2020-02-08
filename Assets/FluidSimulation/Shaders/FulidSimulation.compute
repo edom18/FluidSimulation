@@ -109,7 +109,7 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
     // dist < 50.0 && length(dist) > 0.0 &&
     // uv.x < marginX && uv.x > -marginX &&
     // uv.y < marginY && uv.y > -marginY
-    length(dist) < 0.01
+    length(dist) < 0.005
     )
     {
         vec.xy += _Velocity.xy * px;
