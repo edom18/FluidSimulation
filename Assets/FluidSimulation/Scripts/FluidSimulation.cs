@@ -111,7 +111,15 @@ public class FluidSimulation : MonoBehaviour
 
     private void Update()
     {
-        CalculateVelocity();
+        if (Input.GetMouseButtonDown(0))
+        {
+            _prevMouse = Input.mousePosition;
+        }
+
+        if (Input.GetMouseButton(0))
+        {
+            CalculateVelocity();
+        }
 
         UpdateAdvection();
         InteractionForce();
