@@ -66,18 +66,33 @@ public class FluidSimulation : MonoBehaviour
         public int UpdateTextureID;
     }
 
+    private struct PropertyDef
+    {
+        public int DeltaTimeID;
+        public int ScaleID;
+        public int SourceVelocityID;
+        public int UpdateVelocityID;
+        public int ResultVelocityID;
+        public int SourcePressureID;
+        public int ResultPressureID;
+        public int ResultDivergenceID;
+        public int SourceTextureID;
+        public int ResultTextureID;
+        public int CursorID;
+        public int VelocityID;
+    }
+
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
     [SerializeField] private RawImage _metaPreview = null;
-    [SerializeField] private float _scale = 0.1f;
-    //[SerializeField] private float _alpha = 1.0f;
-    //[SerializeField] private float _beta = 0.25f;
+    [SerializeField] private float _scale = 1.0f;
     [SerializeField] private float _numCalcPressure = 20;
 
     [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
 
-    private KernelDef _kernelDef;
+    private KernelDef _kernelDef = default;
+    private PropertyDef _propertyDef = default;
 
     private RenderTexture _divergenceTexture = null;
 
@@ -91,6 +106,7 @@ public class FluidSimulation : MonoBehaviour
     private void Start()
     {
         Initialize();
+        GetAllPropertyID();
     }
 
     private void Update()
@@ -167,9 +183,6 @@ public class FluidSimulation : MonoBehaviour
         _divergenceTexture = new RenderTexture(_texture.width, _texture.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
         _divergenceTexture.enableRandomWrite = true;
         _divergenceTexture.Create();
-
-        //Texture2D noiseTex = CreatePerlinNoiseTexture.Create(_texture.width, _texture.height, _minNoise, _maxNoise, _noiseScale);
-        //Graphics.CopyTexture(noiseTex, 0, 0, _velocityBuffer.Current, 0, 0);
     }
 
     private void InitializeKernel()
@@ -182,14 +195,30 @@ public class FluidSimulation : MonoBehaviour
         _kernelDef.UpdateTextureID = _shader.FindKernel("UpdateTexture");
     }
 
+    private void GetAllPropertyID()
+    {
+        _propertyDef.DeltaTimeID = Shader.PropertyToID("_DeltaTime");
+        _propertyDef.ScaleID = Shader.PropertyToID("_Scale");
+        _propertyDef.SourceVelocityID = Shader.PropertyToID("_SourceVelocity");
+        _propertyDef.UpdateVelocityID = Shader.PropertyToID("_UpdateVelocity");
+        _propertyDef.ResultVelocityID = Shader.PropertyToID("_ResultVelocity");
+        _propertyDef.SourcePressureID = Shader.PropertyToID("_SourcePressure");
+        _propertyDef.ResultPressureID = Shader.PropertyToID("_ResultPressure");
+        _propertyDef.ResultDivergenceID = Shader.PropertyToID("_ResultDivergence");
+        _propertyDef.SourceTextureID = Shader.PropertyToID("_SourceTexture");
+        _propertyDef.ResultTextureID = Shader.PropertyToID("_ResultTexture");
+        _propertyDef.CursorID = Shader.PropertyToID("_Cursor");
+        _propertyDef.VelocityID = Shader.PropertyToID("_Velocity");
+    }
+
     private void UpdateAdvection()
     {
-        _shader.SetFloat("_DeltaTime", Time.deltaTime);
-        _shader.SetFloat("_Scale", _scale);
+        _shader.SetFloat(_propertyDef.DeltaTimeID, Time.deltaTime);
+        _shader.SetFloat(_propertyDef.ScaleID, _scale);
 
-        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_SourceVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_UpdateVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateAdvectionID, "_ResultVelocity", _velocityBuffer.Other);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, _propertyDef.UpdateVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateAdvectionID, _propertyDef.ResultVelocityID, _velocityBuffer.Other);
 
         _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
 
@@ -200,11 +229,11 @@ public class FluidSimulation : MonoBehaviour
 
     private void InteractionForce()
     {
-        _shader.SetVector("_Cursor", Input.mousePosition);
-        _shader.SetVector("_Velocity", _mouseVelocity);
+        _shader.SetVector(_propertyDef.CursorID, Input.mousePosition);
+        _shader.SetVector(_propertyDef.VelocityID, _mouseVelocity);
 
-        _shader.SetTexture(_kernelDef.InteractionForceID, "_SourceVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.InteractionForceID, "_ResultVelocity", _velocityBuffer.Other);
+        _shader.SetTexture(_kernelDef.InteractionForceID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.InteractionForceID, _propertyDef.ResultVelocityID, _velocityBuffer.Other);
 
         _shader.Dispatch(_kernelDef.InteractionForceID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
 
@@ -213,22 +242,19 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateDivergence()
     {
-        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_SourceVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateDivergenceID, "_ResultDivergence", _divergenceTexture);
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateDivergenceID, _propertyDef.ResultDivergenceID, _divergenceTexture);
 
         _shader.Dispatch(_kernelDef.UpdateDivergenceID, _divergenceTexture.width / 8, _divergenceTexture.height / 8, 1);
     }
 
     private void UpdatePressure()
     {
-        //_shader.SetFloat("_Alpha", _alpha);
-        //_shader.SetFloat("_Beta", _beta);
-
         for (int i = 0; i < _numCalcPressure; i++)
         {
-            _shader.SetTexture(_kernelDef.UpdatePressureID, "_SourcePressure", _pressureBuffer.Current);
-            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultPressure", _pressureBuffer.Other);
-            _shader.SetTexture(_kernelDef.UpdatePressureID, "_ResultDivergence", _divergenceTexture);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, _propertyDef.SourcePressureID, _pressureBuffer.Current);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, _propertyDef.ResultPressureID, _pressureBuffer.Other);
+            _shader.SetTexture(_kernelDef.UpdatePressureID, _propertyDef.ResultDivergenceID, _divergenceTexture);
 
             _shader.Dispatch(_kernelDef.UpdatePressureID, _pressureBuffer.Width / 8, _pressureBuffer.Height / 8, 1);
 
@@ -238,11 +264,11 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateVelocity()
     {
-        _shader.SetFloat("_Scale", _scale);
+        _shader.SetFloat(_propertyDef.ScaleID, _scale);
 
-        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourceVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_SourcePressure", _pressureBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateVelocityID, "_ResultVelocity", _velocityBuffer.Other);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, _propertyDef.SourcePressureID, _pressureBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateVelocityID, _propertyDef.ResultVelocityID, _velocityBuffer.Other);
 
         _shader.Dispatch(_kernelDef.UpdateVelocityID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
 
@@ -251,11 +277,11 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdateTexture()
     {
-        _shader.SetFloat("_DeltaTime", Time.deltaTime);
+        _shader.SetFloat(_propertyDef.DeltaTimeID, Time.deltaTime);
 
-        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceTexture", _previewBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateTextureID, "_SourceVelocity", _velocityBuffer.Current);
-        _shader.SetTexture(_kernelDef.UpdateTextureID, "_ResultTexture", _previewBuffer.Other);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, _propertyDef.SourceTextureID, _previewBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
+        _shader.SetTexture(_kernelDef.UpdateTextureID, _propertyDef.ResultTextureID, _previewBuffer.Other);
 
         _shader.Dispatch(_kernelDef.UpdateTextureID, _previewBuffer.Width / 8, _previewBuffer.Height / 8, 1);
 
