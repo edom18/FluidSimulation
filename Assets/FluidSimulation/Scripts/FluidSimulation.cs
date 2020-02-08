@@ -101,6 +101,7 @@ public class FluidSimulation : MonoBehaviour
     private SwapBuffer _previewBuffer = null;
 
     private Vector3 _mouseVelocity = Vector3.zero;
+    private Vector3 _currentMouse = Vector3.zero;
     private Vector3 _prevMouse = Vector3.zero;
 
     private void Start()
@@ -113,11 +114,13 @@ public class FluidSimulation : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(0))
         {
-            _prevMouse = Input.mousePosition;
+            _currentMouse = GetMousePosition();
+            _prevMouse = _currentMouse;
         }
 
         if (Input.GetMouseButton(0))
         {
+            _currentMouse = GetMousePosition();
             CalculateVelocity();
         }
 
@@ -152,11 +155,42 @@ public class FluidSimulation : MonoBehaviour
         UpdatePreview();
     }
 
+    private Vector3 GetMousePosition()
+    {
+        Vector3 mPos = Input.mousePosition;
+        Vector3[] corners = new Vector3[4];
+        _preview.rectTransform.GetWorldCorners(corners);
+
+        float x = mPos.x - corners[0].x;
+        if (x < 0)
+        {
+            return default;
+        }
+
+        float y = mPos.y - corners[0].y;
+        if (y < 0)
+        {
+            return default;
+        }
+
+        if (x > _preview.rectTransform.rect.width)
+        {
+            return default;
+        }
+
+        if (y > _preview.rectTransform.rect.height)
+        {
+            return default;
+        }
+
+        return new Vector3(x, y, 0);
+    }
+
     private void CalculateVelocity()
     {
-        Vector4 delta = Input.mousePosition - _prevMouse;
+        Vector4 delta = _currentMouse - _prevMouse;
         _mouseVelocity = delta / Time.deltaTime;
-        _prevMouse = Input.mousePosition;
+        _prevMouse = _currentMouse;
     }
 
     private void UpdatePreview()
@@ -236,7 +270,7 @@ public class FluidSimulation : MonoBehaviour
 
     private void InteractionForce()
     {
-        _shader.SetVector(_propertyDef.CursorID, Input.mousePosition);
+        _shader.SetVector(_propertyDef.CursorID, _currentMouse);
         _shader.SetVector(_propertyDef.VelocityID, _mouseVelocity);
 
         _shader.SetTexture(_kernelDef.InteractionForceID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
