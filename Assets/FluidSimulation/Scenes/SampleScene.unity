@@ -370,6 +370,7 @@ MonoBehaviour:
   _velocityPreview: {fileID: 49889068}
   _divergencePreview: {fileID: 1928011646}
   _pressurePreview: {fileID: 1799805513}
+  _attenuation: 0.999
   _numCalcPressure: 20
 --- !u!4 &651846158
 Transform:
