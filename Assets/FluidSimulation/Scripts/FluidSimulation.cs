@@ -48,14 +48,6 @@ public class SwapBuffer
 
 public class FluidSimulation : MonoBehaviour
 {
-    public enum PreviewType
-    {
-        Texture,
-        Velocity,
-        Divergence,
-        Pressure,
-    }
-
     private struct KernelDef
     {
         public int UpdateAdvectionID;
@@ -85,11 +77,11 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
-    [SerializeField] private RawImage _metaPreview = null;
+    [SerializeField] private RawImage _velocityPreview = null;
+    [SerializeField] private RawImage _divergencePreview = null;
+    [SerializeField] private RawImage _pressurePreview = null;
     [SerializeField] private float _scale = 1.0f;
     [SerializeField] private float _numCalcPressure = 20;
-
-    [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
 
     private KernelDef _kernelDef = default;
     private PropertyDef _propertyDef = default;
@@ -135,6 +127,8 @@ public class FluidSimulation : MonoBehaviour
         UpdatePressure();
         UpdateVelocity();
         UpdateTexture();
+
+        UpdatePreview();
     }
 
     private void OnDestroy()
@@ -151,8 +145,6 @@ public class FluidSimulation : MonoBehaviour
         CreateBuffers();
 
         InitializeKernel();
-
-        UpdatePreview();
     }
 
     private Vector3 GetMousePosition()
@@ -195,21 +187,9 @@ public class FluidSimulation : MonoBehaviour
 
     private void UpdatePreview()
     {
-        switch (_previewType)
-        {
-            case PreviewType.Velocity:
-                _metaPreview.texture = _velocityBuffer.Current;
-                break;
-
-            case PreviewType.Divergence:
-                _metaPreview.texture = _divergenceTexture;
-                break;
-
-            case PreviewType.Pressure:
-                _metaPreview.texture = _pressureBuffer.Current;
-                break;
-        }
-
+        _velocityPreview.texture = _velocityBuffer.Current;
+        _divergencePreview.texture = _divergenceTexture;
+        _pressurePreview.texture = _pressureBuffer.Current;
         _preview.texture = _previewBuffer.Current;
     }
 
@@ -264,8 +244,6 @@ public class FluidSimulation : MonoBehaviour
         _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
 
         _velocityBuffer.Swap();
-
-        UpdatePreview();
     }
 
     private void InteractionForce()
@@ -327,7 +305,6 @@ public class FluidSimulation : MonoBehaviour
         _shader.Dispatch(_kernelDef.UpdateTextureID, _previewBuffer.Width / 8, _previewBuffer.Height / 8, 1);
 
         _previewBuffer.Swap();
-
-        UpdatePreview();
     }
 }
+
