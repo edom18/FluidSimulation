@@ -18,83 +18,18 @@ RWTexture2D<float4> _ResultTexture;
 SamplerState _LinearClamp;
 
 float _DeltaTime;
-float _Alpha;
-float _Beta;
 float _Scale;
+float _Width;
+float _Height;
 
 float2 _Cursor;
 float2 _Velocity;
 
-float blendAdd(float base, float blend)
-{
-    return min(base + blend, 1.0);
-}
-
-float3 blendAdd(float3 base, float3 blend)
-{
-    return min(base + blend, 1.0);
-}
-
-float3 blendAdd(float3 base, float3 blend, float3 opacity)
-{
-    return (blendAdd(base, blend) * opacity + base * (1.0 - opacity));
-}
-
-//
-// NOTE:-------------------------------------------------------
-//
-// 【圧力・発散の更新】
-//
-// Refer to : http://el-ement.com/blog/2015/03/16/gpu-fluid/
-//
-// 発散 ... (右の点の速度のx成分) – (左の点の速度のx成分) + (下の点の速度のy成分) – (上の点の速度のy成分)
-// 圧力 ... (力のx成分) = {(左の点の圧力) – (右の点の圧力)} * 0.5
-//          (力のy成分) = {(上の点の圧力) – (下の点の圧力)} * 0.5
-// 速度 ... (速度のx成分) += {(左の点の圧力) – (右の点の圧力)} * 0.5
-//          (速度のy成分) += {(上の点の圧力) – (下の点の圧力)} * 0.5
-//
-// ある点に隣り合う4点の圧力が決まっているとき、
-// 中心の点の圧力をpにしたとすると、中心の点の発散は圧力の適用後
-// 4 * p – (左の圧力) + (右の圧力) + (上の圧力) + (下の圧力)
-// だけ変化します。
-//
-// 変化前の発散をdとすると、これが変化後に0になってほしいので、
-// -d = (4 * p) – {(左の圧力) + (右の圧力) + (上の圧力) + (下の圧力)}
-// 変形すると
-// p = {(左の圧力) + (右の圧力) + (上の圧力) + (下の圧力) – d} * 0.25
-// 
-// これを解こうとすると、とある点の隣合う点の圧力があらかじめ求まっていないとならないため、
-// 巨大な連立方程式を解く必要が出てしまう。
-// 
-// そこで、始めに圧力を0など適当な値にセットしておく
-// セットされた圧力を使って新しい圧力を計算する
-// 計算された圧力を使ってまた新しい圧力を計算する
-// また計算された圧力を使ってさらに新しい圧力を計算する
-//
-// という風に、圧力を繰り返し計算しつつ徐々に精度を上げていく方法です。
-// この方法は非常に強力で、Box2DやBulletなど各種物理エンジンでも使われています。
-//
-// まとめ
-// 以上で一通りの説明が終わったので、2～4の流れを確認します。
-// 
-// 　・テクスチャの各ピクセルに対し、
-// 　　　(左の速度.x) – (右の速度.x) + (上の速度.y) – (下の速度.y)
-// 　　を計算する。これを各ピクセルの発散とする。
-// 　・各ピクセルの圧力を0に設定する。
-// 　・各ピクセルに対し、圧力を
-// 　　　{(左の圧力) + (右の圧力) + (上の圧力) + (下の圧力) – (発散)} * 0.25
-// 　　で更新する。
-// 　・↑を何度か繰り返す。
-// 　・各ピクセルに対し、
-// 　　　(速度.x) += {(左の圧力) – (右の圧力)} * 0.5
-// 　　　(速度.y) += {(上の圧力) – (下の圧力)} * 0.5
-// 　　を計算する。
-
 [numthreads(8,8,1)]
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0/w, 1.0/h, 0.0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -102,34 +37,25 @@ void UpdateAdvection(uint2 id : SV_DispatchThreadID)
     float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
 
-    _ResultVelocity[id] = float4(result, 0.0, 1.0) * _Scale;
+    _ResultVelocity[id] = float4(result, 0.0, 1.0);
 }
 
 [numthreads(8,8,1)]
 void InteractionForce(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float2 px = float2(1.0 / w, 1.0 / h);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float3 vec = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xyz;
 
-    float dist = distance(_Cursor * px, uv);
+    float dist = distance(_Cursor * px * _Scale, uv);
 
-    //float marginX = 1.0 - 2.0 * px.x;
-    //float marginY = 1.0 - 2.0 * px.y;
-
-    if (
-    // dist < 50.0 && length(dist) > 0.0 &&
-    // uv.x < marginX && uv.x > -marginX &&
-    // uv.y < marginY && uv.y > -marginY
-    length(dist) < 0.005
-    )
+    if (dist < 0.005)
     {
         vec.xy += _Velocity.xy * px;
-        // vec = blendAdd(vec, float3(_Velocity.xy * px, 0.0), clamp(1.0 - dist, 0.0, 1.0));
     }
 
     _ResultVelocity[id] = float4(vec, 1.0);
@@ -138,8 +64,8 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -157,8 +83,8 @@ void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdatePressure(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourcePressure.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -177,8 +103,8 @@ void UpdatePressure(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourcePressure.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -189,7 +115,7 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
     float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 0.0, 1.0);
+    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5), 0.0, 1.0);
     v2 *= 0.99;
 
     _ResultVelocity[id] = v2;
@@ -198,8 +124,8 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateTexture(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceTexture.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
