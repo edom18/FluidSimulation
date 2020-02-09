@@ -21,6 +21,7 @@ float _DeltaTime;
 float _Scale;
 float _Width;
 float _Height;
+float _Attenuation;
 
 float2 _Cursor;
 float2 _Velocity;
@@ -116,7 +117,7 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 
     float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5), 0.0, 1.0);
-    v2 *= 0.99;
+    v2 *= _Attenuation;
 
     _ResultVelocity[id] = v2;
 }

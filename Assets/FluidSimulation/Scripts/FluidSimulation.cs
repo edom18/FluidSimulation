@@ -74,6 +74,7 @@ public class FluidSimulation : MonoBehaviour
         public int VelocityID;
         public int WidthID;
         public int HeightID;
+        public int AttenuationID;
     }
 
     [SerializeField] private ComputeShader _shader = null;
@@ -82,6 +83,7 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private RawImage _velocityPreview = null;
     [SerializeField] private RawImage _divergencePreview = null;
     [SerializeField] private RawImage _pressurePreview = null;
+    [SerializeField] private float _attenuation = 0.99f;
     [SerializeField] private float _numCalcPressure = 20;
 
     private float _scale = 1.0f;
@@ -221,6 +223,7 @@ public class FluidSimulation : MonoBehaviour
         _shader.SetFloat(_propertyDef.ScaleID, _scale);
         _shader.SetVector(_propertyDef.CursorID, _currentMouse);
         _shader.SetVector(_propertyDef.VelocityID, _mouseVelocity);
+        _shader.SetFloat(_propertyDef.AttenuationID, _attenuation);
     }
 
     private void InitializeKernel()
@@ -249,6 +252,7 @@ public class FluidSimulation : MonoBehaviour
         _propertyDef.VelocityID = Shader.PropertyToID("_Velocity");
         _propertyDef.WidthID = Shader.PropertyToID("_Width");
         _propertyDef.HeightID = Shader.PropertyToID("_Height");
+        _propertyDef.AttenuationID = Shader.PropertyToID("_Attenuation");
     }
 
     private void UpdateAdvection()
