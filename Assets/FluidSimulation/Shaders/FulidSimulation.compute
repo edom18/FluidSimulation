@@ -18,9 +18,9 @@ RWTexture2D<float4> _ResultTexture;
 SamplerState _LinearClamp;
 
 float _DeltaTime;
-float _Alpha;
-float _Beta;
 float _Scale;
+float _Width;
+float _Height;
 
 float2 _Cursor;
 float2 _Velocity;
@@ -28,8 +28,8 @@ float2 _Velocity;
 [numthreads(8,8,1)]
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0/w, 1.0/h, 0.0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -37,21 +37,21 @@ void UpdateAdvection(uint2 id : SV_DispatchThreadID)
     float2 velocity = _UpdateVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
     float2 result = _SourceVelocity.SampleLevel(_LinearClamp, uv - velocity * _DeltaTime, 0).xy;
 
-    _ResultVelocity[id] = float4(result, 0.0, 1.0) * _Scale;
+    _ResultVelocity[id] = float4(result, 0.0, 1.0);
 }
 
 [numthreads(8,8,1)]
 void InteractionForce(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float2 px = float2(1.0 / w, 1.0 / h);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
 
     float3 vec = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xyz;
 
-    float dist = distance(_Cursor * px, uv);
+    float dist = distance(_Cursor * px * _Scale, uv);
 
     if (dist < 0.005)
     {
@@ -64,8 +64,8 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceVelocity.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -83,8 +83,8 @@ void UpdateDivergence(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdatePressure(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourcePressure.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -103,8 +103,8 @@ void UpdatePressure(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourcePressure.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
@@ -115,7 +115,7 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
     float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 0.0, 1.0);
+    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5), 0.0, 1.0);
     v2 *= 0.99;
 
     _ResultVelocity[id] = v2;
@@ -124,8 +124,8 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void UpdateTexture(uint2 id : SV_DispatchThreadID)
 {
-    float w, h;
-    _SourceTexture.GetDimensions(w, h);
+    float w = _Width;
+    float h = _Height;
 
     float3 px = float3(1.0 / w, 1.0 / h, 0);
     float2 uv = float2(id.x / w, id.y / h) + px.xy * 0.5;
