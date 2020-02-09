@@ -189,8 +189,8 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
     float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 1.0, 1.0);
-    v2 *= 0.95;
+    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 0.0, 1.0);
+    v2 *= 0.99;
 
     _ResultVelocity[id] = v2;
 }
