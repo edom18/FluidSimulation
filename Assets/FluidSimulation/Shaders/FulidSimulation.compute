@@ -73,6 +73,22 @@ float3 blendAdd(float3 base, float3 blend, float3 opacity)
 //
 // という風に、圧力を繰り返し計算しつつ徐々に精度を上げていく方法です。
 // この方法は非常に強力で、Box2DやBulletなど各種物理エンジンでも使われています。
+//
+// まとめ
+// 以上で一通りの説明が終わったので、2～4の流れを確認します。
+// 
+// 　・テクスチャの各ピクセルに対し、
+// 　　　(左の速度.x) – (右の速度.x) + (上の速度.y) – (下の速度.y)
+// 　　を計算する。これを各ピクセルの発散とする。
+// 　・各ピクセルの圧力を0に設定する。
+// 　・各ピクセルに対し、圧力を
+// 　　　{(左の圧力) + (右の圧力) + (上の圧力) + (下の圧力) – (発散)} * 0.25
+// 　　で更新する。
+// 　・↑を何度か繰り返す。
+// 　・各ピクセルに対し、
+// 　　　(速度.x) += {(左の圧力) – (右の圧力)} * 0.5
+// 　　　(速度.y) += {(上の圧力) – (下の圧力)} * 0.5
+// 　　を計算する。
 
 [numthreads(8,8,1)]
 void UpdateAdvection(uint2 id : SV_DispatchThreadID)
@@ -109,7 +125,7 @@ void InteractionForce(uint2 id : SV_DispatchThreadID)
     // dist < 50.0 && length(dist) > 0.0 &&
     // uv.x < marginX && uv.x > -marginX &&
     // uv.y < marginY && uv.y > -marginY
-    length(dist) < 0.01
+    length(dist) < 0.005
     )
     {
         vec.xy += _Velocity.xy * px;
@@ -133,7 +149,7 @@ void UpdateDivergence(uint2 id : SV_DispatchThreadID)
     float y0 = _SourceVelocity.SampleLevel(_LinearClamp, uv - px.zy, 0).y;
     float y1 = _SourceVelocity.SampleLevel(_LinearClamp, uv + px.zy, 0).y;
 
-    float divergence = (x1 - x0 + y1 - y0);// *0.5;
+    float divergence = (x1 - x0 + y1 - y0);
 
     _ResultDivergence[id] = float4(divergence.xx, 0.0, 1.0);
 }
@@ -173,8 +189,8 @@ void UpdateVelocity(uint2 id : SV_DispatchThreadID)
     float y1 = _SourcePressure.SampleLevel(_LinearClamp, uv + px.zy, 0).r;
 
     float2 v = _SourceVelocity.SampleLevel(_LinearClamp, uv, 0).xy;
-    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 1.0, 1.0);
-    v2 *= 0.95;
+    float4 v2 = float4((v - (float2(x1, y1) - float2(x0, y0)) * 0.5) * _Scale, 0.0, 1.0);
+    v2 *= 0.99;
 
     _ResultVelocity[id] = v2;
 }

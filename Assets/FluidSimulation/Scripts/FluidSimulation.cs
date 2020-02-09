@@ -48,14 +48,6 @@ public class SwapBuffer
 
 public class FluidSimulation : MonoBehaviour
 {
-    public enum PreviewType
-    {
-        Texture,
-        Velocity,
-        Divergence,
-        Pressure,
-    }
-
     private struct KernelDef
     {
         public int UpdateAdvectionID;
@@ -85,11 +77,11 @@ public class FluidSimulation : MonoBehaviour
     [SerializeField] private ComputeShader _shader = null;
     [SerializeField] private Texture2D _texture = null;
     [SerializeField] private RawImage _preview = null;
-    [SerializeField] private RawImage _metaPreview = null;
+    [SerializeField] private RawImage _velocityPreview = null;
+    [SerializeField] private RawImage _divergencePreview = null;
+    [SerializeField] private RawImage _pressurePreview = null;
     [SerializeField] private float _scale = 1.0f;
     [SerializeField] private float _numCalcPressure = 20;
-
-    [SerializeField] private PreviewType _previewType = PreviewType.Velocity;
 
     private KernelDef _kernelDef = default;
     private PropertyDef _propertyDef = default;
@@ -101,6 +93,7 @@ public class FluidSimulation : MonoBehaviour
     private SwapBuffer _previewBuffer = null;
 
     private Vector3 _mouseVelocity = Vector3.zero;
+    private Vector3 _currentMouse = Vector3.zero;
     private Vector3 _prevMouse = Vector3.zero;
 
     private void Start()
@@ -113,11 +106,13 @@ public class FluidSimulation : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(0))
         {
-            _prevMouse = Input.mousePosition;
+            _currentMouse = GetMousePosition();
+            _prevMouse = _currentMouse;
         }
 
         if (Input.GetMouseButton(0))
         {
+            _currentMouse = GetMousePosition();
             CalculateVelocity();
         }
 
@@ -132,6 +127,8 @@ public class FluidSimulation : MonoBehaviour
         UpdatePressure();
         UpdateVelocity();
         UpdateTexture();
+
+        UpdatePreview();
     }
 
     private void OnDestroy()
@@ -148,34 +145,51 @@ public class FluidSimulation : MonoBehaviour
         CreateBuffers();
 
         InitializeKernel();
+    }
 
-        UpdatePreview();
+    private Vector3 GetMousePosition()
+    {
+        Vector3 mPos = Input.mousePosition;
+        Vector3[] corners = new Vector3[4];
+        _preview.rectTransform.GetWorldCorners(corners);
+
+        float x = mPos.x - corners[0].x;
+        if (x < 0)
+        {
+            return default;
+        }
+
+        float y = mPos.y - corners[0].y;
+        if (y < 0)
+        {
+            return default;
+        }
+
+        if (x > _preview.rectTransform.rect.width)
+        {
+            return default;
+        }
+
+        if (y > _preview.rectTransform.rect.height)
+        {
+            return default;
+        }
+
+        return new Vector3(x, y, 0);
     }
 
     private void CalculateVelocity()
     {
-        Vector4 delta = Input.mousePosition - _prevMouse;
+        Vector4 delta = _currentMouse - _prevMouse;
         _mouseVelocity = delta / Time.deltaTime;
-        _prevMouse = Input.mousePosition;
+        _prevMouse = _currentMouse;
     }
 
     private void UpdatePreview()
     {
-        switch (_previewType)
-        {
-            case PreviewType.Velocity:
-                _metaPreview.texture = _velocityBuffer.Current;
-                break;
-
-            case PreviewType.Divergence:
-                _metaPreview.texture = _divergenceTexture;
-                break;
-
-            case PreviewType.Pressure:
-                _metaPreview.texture = _pressureBuffer.Current;
-                break;
-        }
-
+        _velocityPreview.texture = _velocityBuffer.Current;
+        _divergencePreview.texture = _divergenceTexture;
+        _pressurePreview.texture = _pressureBuffer.Current;
         _preview.texture = _previewBuffer.Current;
     }
 
@@ -230,13 +244,11 @@ public class FluidSimulation : MonoBehaviour
         _shader.Dispatch(_kernelDef.UpdateAdvectionID, _velocityBuffer.Width / 8, _velocityBuffer.Height / 8, 1);
 
         _velocityBuffer.Swap();
-
-        UpdatePreview();
     }
 
     private void InteractionForce()
     {
-        _shader.SetVector(_propertyDef.CursorID, Input.mousePosition);
+        _shader.SetVector(_propertyDef.CursorID, _currentMouse);
         _shader.SetVector(_propertyDef.VelocityID, _mouseVelocity);
 
         _shader.SetTexture(_kernelDef.InteractionForceID, _propertyDef.SourceVelocityID, _velocityBuffer.Current);
@@ -293,7 +305,6 @@ public class FluidSimulation : MonoBehaviour
         _shader.Dispatch(_kernelDef.UpdateTextureID, _previewBuffer.Width / 8, _previewBuffer.Height / 8, 1);
 
         _previewBuffer.Swap();
-
-        UpdatePreview();
     }
 }
+
